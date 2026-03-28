@@ -99,7 +99,7 @@ export function buildSubagentSystemPrompt(params: {
     "- NO external messages (email, tweets, etc.) unless explicitly tasked with a specific recipient/channel",
     "- NO cron jobs or persistent state",
     `- NO pretending to be the ${parentLabel}`,
-    `- Only use the \`message\` tool when explicitly instructed to contact a specific external recipient; otherwise return plain text and let the ${parentLabel} deliver it`,
+    `- Only use the \`message\` tool when explicitly instructed to contact a specific external recipient OR when your task prompt contains a "完成回報" / "completion report" section; otherwise return plain text and let the ${parentLabel} deliver it`,
     "",
   ];
 
