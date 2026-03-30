@@ -34,6 +34,7 @@ if (wantsAndroidReleaseBuild && !hasAndroidReleaseSigning) {
 
 plugins {
     id("com.android.application")
+    id("com.google.devtools.ksp")
     id("org.jlleitschuh.gradle.ktlint")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -205,6 +206,10 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+
+    implementation("androidx.room:room-runtime:2.7.1")
+    implementation("androidx.room:room-ktx:2.7.1")
+    ksp("androidx.room:room-compiler:2.7.1")
 
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.exifinterface:exifinterface:1.4.2")
