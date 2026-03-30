@@ -317,10 +317,13 @@ App 啟動
 
 **目標：在 Android 上跑通一個完整的 AI agent 對話**
 
-- [ ] `LlmProvider` interface + `AnthropicProvider` 實作
-- [ ] `GhcProvider` 實作（OAuth flow）
-- [ ] `AgentEngine` — 基本 agent loop（對話 + tool calling）
-- [ ] `WebSearchTool` — 一個可用的 tool 證明 tool use 可行
+- [x] `LlmProvider` interface + `AnthropicProvider` 實作
+- [x] `OpenAiProvider` 實作
+- [x] `GhcProvider` 實作（extends OpenAiProvider, OAuth flow 待 auth layer）
+- [x] `GoogleProvider` 實作（Gemini API）
+- [x] `AgentEngine` — 基本 agent loop（對話 + tool calling）
+- [x] `WebSearchTool` — DuckDuckGo HTML scrape
+- [x] Tool system（`Tool` interface + `ToolRegistry` + `ToolResult`）
 - [ ] Standalone Chat UI — 用現有 Compose Chat 組件
 - [ ] Provider 設定 UI — 輸入 API key 或 OAuth login
 - [ ] Room DB 儲存對話歷史
