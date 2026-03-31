@@ -324,10 +324,15 @@ App 啟動
 - [x] `AgentEngine` — 基本 agent loop（對話 + tool calling）
 - [x] `WebSearchTool` — DuckDuckGo HTML scrape
 - [x] Tool system（`Tool` interface + `ToolRegistry` + `ToolResult`）
-- [ ] Standalone Chat UI — 用現有 Compose Chat 組件
-- [ ] Provider 設定 UI — 輸入 API key 或 OAuth login
-- [ ] Room DB 儲存對話歷史
-- [ ] EncryptedSharedPreferences 儲存 credentials
+- [x] Standalone Chat UI — 用現有 Compose Chat 組件
+- [x] Provider 設定 UI — 輸入 API key 或 OAuth login
+- [x] Room DB 儲存對話歷史
+- [x] EncryptedSharedPreferences 儲存 credentials
+- [x] `OpenRouterProvider` — OpenRouter (OpenAI-compatible)
+- [x] `GhcOAuthFlow` — GitHub Device Flow for Copilot auth
+- [x] `ProviderErrorHandler` — Error classification + exponential backoff retry
+- [x] `WebFetchTool` — Fetch web pages, strip HTML
+- [x] `ReadFileTool` / `WriteFileTool` / `ListFilesTool` — App sandbox file I/O
 
 **不做的：**
 - ❌ 完整 OpenClaw 相容

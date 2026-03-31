@@ -1,5 +1,10 @@
 package ai.openclaw.app.standalone.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +36,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,13 +48,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.openclaw.app.standalone.auth.AuthManager
 import ai.openclaw.app.standalone.auth.Credential
+import ai.openclaw.app.standalone.auth.GhcOAuthFlow
+import ai.openclaw.app.standalone.auth.GhcOAuthState
 import ai.openclaw.app.standalone.provider.AnthropicProvider
 import ai.openclaw.app.standalone.provider.GoogleProvider
 import ai.openclaw.app.standalone.provider.OpenAiProvider
+import ai.openclaw.app.standalone.provider.OpenRouterProvider
 import ai.openclaw.app.ui.mobileAccent
 import ai.openclaw.app.ui.mobileAccentSoft
 import ai.openclaw.app.ui.mobileBorder
@@ -63,6 +74,7 @@ import ai.openclaw.app.ui.mobileTextSecondary
 import ai.openclaw.app.ui.mobileTextTertiary
 import ai.openclaw.app.ui.mobileTitle1
 import ai.openclaw.app.ui.mobileDanger
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 /** Info about a provider entry in the setup list. */
@@ -89,6 +101,7 @@ fun ProviderSetupScreen(
       ProviderEntry("google", "Google Gemini", ProviderAuthType.API_KEY, configured.contains("google")),
       ProviderEntry("anthropic", "Anthropic Claude", ProviderAuthType.API_KEY, configured.contains("anthropic")),
       ProviderEntry("openai", "OpenAI", ProviderAuthType.API_KEY, configured.contains("openai")),
+      ProviderEntry("openrouter", "OpenRouter", ProviderAuthType.API_KEY, configured.contains("openrouter")),
       ProviderEntry("ghc", "GitHub Copilot", ProviderAuthType.OAUTH, configured.contains("ghc")),
     )
   }
@@ -274,19 +287,187 @@ private fun ProviderCard(
         }
 
         ProviderAuthType.OAUTH -> {
+          GhcOAuthSection(
+            entry = entry,
+            authManager = authManager,
+            onChanged = onChanged,
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun GhcOAuthSection(
+  entry: ProviderEntry,
+  authManager: AuthManager,
+  onChanged: () -> Unit,
+) {
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  val oauthStateFlow = remember { MutableStateFlow<GhcOAuthState?>(null) }
+  val oauthState by oauthStateFlow.collectAsState()
+
+  if (entry.isConfigured) {
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Text("Connected", style = mobileCallout, color = mobileSuccess)
+      Spacer(modifier = Modifier.weight(1f))
+      Button(
+        onClick = {
+          authManager.deleteCredential(entry.id)
+          onChanged()
+          Toast.makeText(context, "${entry.displayName} removed", Toast.LENGTH_SHORT).show()
+        },
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+          containerColor = Color.Transparent,
+          contentColor = mobileDanger,
+        ),
+        border = BorderStroke(1.dp, mobileDanger),
+      ) {
+        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+        Spacer(modifier = Modifier.width(4.dp))
+        Text("Disconnect", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
+      }
+    }
+    return
+  }
+
+  when (val state = oauthState) {
+    null -> {
+      Button(
+        onClick = {
+          scope.launch {
+            GhcOAuthFlow().start().collect { newState ->
+              oauthStateFlow.value = newState
+              if (newState is GhcOAuthState.Authorized) {
+                authManager.saveCredential(
+                  "ghc",
+                  Credential.OAuthToken(
+                    accessToken = newState.accessToken,
+                    refreshToken = null,
+                    expiresAtMs = 0L,
+                  ),
+                )
+                onChanged()
+              }
+            }
+          }
+        },
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+          containerColor = mobileAccent,
+          contentColor = Color.White,
+        ),
+      ) {
+        Text("Connect with GitHub", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
+      }
+    }
+
+    is GhcOAuthState.PendingUserAuth -> {
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
+        Text(
+          text = "Enter this code on GitHub:",
+          style = mobileCallout,
+          color = mobileTextSecondary,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Surface(
+          shape = RoundedCornerShape(8.dp),
+          color = mobileSurface,
+          border = BorderStroke(1.dp, mobileAccent),
+        ) {
+          Text(
+            text = state.userCode,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            style = mobileHeadline.copy(
+              fontWeight = FontWeight.Bold,
+              fontSize = 24.sp,
+              letterSpacing = 4.sp,
+            ),
+            color = mobileAccent,
+            textAlign = TextAlign.Center,
+          )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           Button(
             onClick = {
-              Toast.makeText(context, "OAuth flow coming soon", Toast.LENGTH_SHORT).show()
+              val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+              clipboard.setPrimaryClip(ClipData.newPlainText("GitHub Code", state.userCode))
+              Toast.makeText(context, "Code copied!", Toast.LENGTH_SHORT).show()
             },
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-              containerColor = mobileCardSurface,
-              contentColor = mobileTextSecondary,
+              containerColor = mobileAccentSoft,
+              contentColor = mobileAccent,
             ),
-            border = BorderStroke(1.dp, mobileBorderStrong),
           ) {
-            Text("Connect with GitHub", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
+            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Copy", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
           }
+          Button(
+            onClick = {
+              context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.verificationUri)))
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+              containerColor = mobileAccent,
+              contentColor = Color.White,
+            ),
+          ) {
+            Text("Open GitHub", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
+          }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = mobileAccent)
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Waiting for authorization…", style = mobileCaption1, color = mobileTextTertiary)
+        }
+      }
+    }
+
+    is GhcOAuthState.Polling -> {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = mobileAccent)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Checking authorization…", style = mobileCallout, color = mobileTextSecondary)
+      }
+    }
+
+    is GhcOAuthState.Authorized -> {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp), tint = mobileSuccess)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Connected!", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold), color = mobileSuccess)
+      }
+    }
+
+    is GhcOAuthState.Failed -> {
+      Column {
+        Text(
+          text = state.message,
+          style = mobileCaption1,
+          color = mobileDanger,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+          onClick = { oauthStateFlow.value = null },
+          shape = RoundedCornerShape(12.dp),
+          colors = ButtonDefaults.buttonColors(
+            containerColor = mobileAccent,
+            contentColor = Color.White,
+          ),
+        ) {
+          Text("Try Again", style = mobileCallout.copy(fontWeight = FontWeight.SemiBold))
         }
       }
     }
@@ -298,6 +479,7 @@ private suspend fun validateApiKey(providerId: String, key: String): Boolean {
     "google" -> GoogleProvider(key).validateCredentials()
     "anthropic" -> AnthropicProvider(key).validateCredentials()
     "openai" -> OpenAiProvider(key).validateCredentials()
+    "openrouter" -> OpenRouterProvider(key).validateCredentials()
     else -> false
   }
 }

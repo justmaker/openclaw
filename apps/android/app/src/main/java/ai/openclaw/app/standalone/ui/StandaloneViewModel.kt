@@ -12,11 +12,17 @@ import ai.openclaw.app.standalone.db.AppDatabase
 import ai.openclaw.app.standalone.db.ConversationEntity
 import ai.openclaw.app.standalone.db.MessageEntity
 import ai.openclaw.app.standalone.provider.AnthropicProvider
+import ai.openclaw.app.standalone.provider.GhcProvider
 import ai.openclaw.app.standalone.provider.GoogleProvider
 import ai.openclaw.app.standalone.provider.LlmProvider
 import ai.openclaw.app.standalone.provider.OpenAiProvider
+import ai.openclaw.app.standalone.provider.OpenRouterProvider
+import ai.openclaw.app.standalone.tools.ListFilesTool
+import ai.openclaw.app.standalone.tools.ReadFileTool
 import ai.openclaw.app.standalone.tools.ToolRegistry
+import ai.openclaw.app.standalone.tools.WebFetchTool
 import ai.openclaw.app.standalone.tools.WebSearchTool
+import ai.openclaw.app.standalone.tools.WriteFileTool
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -222,6 +228,11 @@ class StandaloneViewModel(app: Application) : AndroidViewModel(app) {
     val provider = createProvider(providerId) ?: return
     val toolRegistry = ToolRegistry()
     toolRegistry.register(WebSearchTool())
+    toolRegistry.register(WebFetchTool())
+    val filesDir = getApplication<Application>().filesDir
+    toolRegistry.register(ReadFileTool(filesDir))
+    toolRegistry.register(WriteFileTool(filesDir))
+    toolRegistry.register(ListFilesTool(filesDir))
     val config = AgentConfig(
       model = provider.supportedModels.first().id,
       systemPrompt = "You are a helpful AI assistant running on an Android device via OpenClaw.",
@@ -230,12 +241,26 @@ class StandaloneViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   private fun createProvider(providerId: String): LlmProvider? {
-    val apiKey = authManager.getApiKey(providerId) ?: return null
     return when (providerId) {
-      "google" -> GoogleProvider(apiKey)
-      "anthropic" -> AnthropicProvider(apiKey)
-      "openai" -> OpenAiProvider(apiKey)
-      else -> null
+      "ghc" -> {
+        // GHC uses OAuthToken, not ApiKey.
+        val cred = authManager.getCredential(providerId) ?: return null
+        val token = when (cred) {
+          is Credential.OAuthToken -> cred.accessToken
+          is Credential.ApiKey -> cred.key
+        }
+        GhcProvider(token)
+      }
+      else -> {
+        val apiKey = authManager.getApiKey(providerId) ?: return null
+        when (providerId) {
+          "google" -> GoogleProvider(apiKey)
+          "anthropic" -> AnthropicProvider(apiKey)
+          "openai" -> OpenAiProvider(apiKey)
+          "openrouter" -> OpenRouterProvider(apiKey)
+          else -> null
+        }
+      }
     }
   }
 
@@ -286,6 +311,8 @@ class StandaloneViewModel(app: Application) : AndroidViewModel(app) {
       "google" to "Google Gemini",
       "anthropic" to "Anthropic Claude",
       "openai" to "OpenAI",
+      "openrouter" to "OpenRouter",
+      "ghc" to "GitHub Copilot",
     )
   }
 }
