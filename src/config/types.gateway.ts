@@ -450,4 +450,16 @@ export type GatewayConfig = {
    * the rolling window expires. Default: 10.
    */
   channelMaxRestartsPerHour?: number;
+  /**
+   * Maximum number of inbound messages processed concurrently across all
+   * channels. Messages that arrive while the limit is reached are queued
+   * (not dropped). Does not affect heartbeat or system events. Default: 8.
+   */
+  maxConcurrentMessages?: number;
+  /**
+   * Maximum time in milliseconds a queued inbound message waits for a
+   * concurrency slot before being rejected with a timeout error.
+   * Default: 120000 (2 minutes).
+   */
+  messageQueueTimeoutMs?: number;
 };

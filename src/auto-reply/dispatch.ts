@@ -1,4 +1,9 @@
 import type { OpenClawConfig } from "../config/config.js";
+import {
+  acquireMessageSlot,
+  configureMessageConcurrency,
+  releaseMessageSlot,
+} from "./message-concurrency.js";
 import type { DispatchFromConfigResult } from "./reply/dispatch-from-config.js";
 import { dispatchReplyFromConfig } from "./reply/dispatch-from-config.js";
 import { finalizeInboundContext } from "./reply/inbound-context.js";
@@ -39,18 +44,33 @@ export async function dispatchInboundMessage(params: {
   replyOptions?: Omit<GetReplyOptions, "onToolResult" | "onBlockReply">;
   replyResolver?: typeof import("./reply.js").getReplyFromConfig;
 }): Promise<DispatchInboundResult> {
-  const finalized = finalizeInboundContext(params.ctx);
-  return await withReplyDispatcher({
-    dispatcher: params.dispatcher,
-    run: () =>
-      dispatchReplyFromConfig({
-        ctx: finalized,
-        cfg: params.cfg,
-        dispatcher: params.dispatcher,
-        replyOptions: params.replyOptions,
-        replyResolver: params.replyResolver,
-      }),
-  });
+  // Apply concurrency settings from config on every dispatch so hot-reload
+  // changes take effect without a full restart.
+  const gw = params.cfg.gateway;
+  if (gw?.maxConcurrentMessages != null || gw?.messageQueueTimeoutMs != null) {
+    configureMessageConcurrency({
+      maxConcurrent: gw.maxConcurrentMessages,
+      queueTimeoutMs: gw.messageQueueTimeoutMs,
+    });
+  }
+
+  await acquireMessageSlot();
+  try {
+    const finalized = finalizeInboundContext(params.ctx);
+    return await withReplyDispatcher({
+      dispatcher: params.dispatcher,
+      run: () =>
+        dispatchReplyFromConfig({
+          ctx: finalized,
+          cfg: params.cfg,
+          dispatcher: params.dispatcher,
+          replyOptions: params.replyOptions,
+          replyResolver: params.replyResolver,
+        }),
+    });
+  } finally {
+    releaseMessageSlot();
+  }
 }
 
 export async function dispatchInboundMessageWithBufferedDispatcher(params: {
