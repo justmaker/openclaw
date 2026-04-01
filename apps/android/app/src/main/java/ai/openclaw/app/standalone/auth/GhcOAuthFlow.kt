@@ -78,7 +78,7 @@ class GhcOAuthFlow(
 
     while (System.currentTimeMillis() < deadline) {
       delay(intervalMs)
-      emit(GhcOAuthState.Polling)
+      // Keep PendingUserAuth visible while polling — don't emit Polling state.
 
       val result = pollAccessToken(deviceCode.deviceCode)
       when {
