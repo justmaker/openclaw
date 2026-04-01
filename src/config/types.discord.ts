@@ -65,6 +65,13 @@ export type DiscordGuildChannelConfig = {
   autoArchiveDuration?: "60" | "1440" | "4320" | "10080" | 60 | 1440 | 4320 | 10080;
   /** Naming strategy for auto-created threads. "message" uses message text; "generated" renames with an LLM title. */
   autoThreadName?: "message" | "generated";
+  /** If true or config object, automatically create ACP session for new threads in this channel. */
+  autoAcpThread?: boolean | {
+    enabled?: boolean;
+    backend?: string;
+    agentId?: string;
+    mode?: "persistent" | "oneshot";
+  };
 };
 
 export type DiscordReactionNotificationMode = "off" | "own" | "all" | "allowlist";
